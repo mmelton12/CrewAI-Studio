@@ -1,10 +1,16 @@
 import os
 from langchain_openai import ChatOpenAI
-from langchain_groq import ChatGroq
 #from langchain_ollama import ChatOllama
 from langchain_anthropic import ChatAnthropic
 from crewai import LLM
 from dotenv import load_dotenv
+
+# Try to import Groq, but make it optional
+try:
+    from langchain_groq import ChatGroq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 
 def create_openai_llm(model, temperature):
     safe_pop_env_var('OPENAI_API_KEY')
@@ -31,9 +37,10 @@ def create_anthropic_llm(model, temperature):
         raise ValueError("Anthropic API key not set in .env file")
 
 def create_groq_llm(model, temperature):
+    if not GROQ_AVAILABLE:
+        raise ValueError("Groq integration is not available. Please install langchain-groq package.")
     api_key = os.getenv('GROQ_API_KEY')
     if api_key:
-
         return ChatGroq(groq_api_key=api_key, model_name=model, temperature=temperature, max_tokens=4095)
     else:
         raise ValueError("Groq API key not set in .env file")
@@ -55,14 +62,11 @@ def create_lmstudio_llm(model, temperature):
     else:
         raise ValueError("LM Studio API base not set in .env file")
 
+# Only include Groq in LLM_CONFIG if it's available
 LLM_CONFIG = {
     "OpenAI": {
         "models": ["gpt-4o","gpt-4o-mini","gpt-3.5-turbo", "gpt-4-turbo"],
         "create_llm": create_openai_llm
-    },
-    "Groq": {
-        "models": ["groq/llama3-8b-8192","groq/llama3-70b-8192", "groq/mixtral-8x7b-32768"],
-        "create_llm": create_groq_llm
     },
     "Ollama": {
         "models": os.getenv("OLLAMA_MODELS", "").split(',') if os.getenv("OLLAMA_MODELS") else [],
@@ -76,8 +80,14 @@ LLM_CONFIG = {
         "models": ["lms-default"],
         "create_llm": create_lmstudio_llm
     }
-
 }
+
+# Add Groq to LLM_CONFIG only if it's available
+if GROQ_AVAILABLE:
+    LLM_CONFIG["Groq"] = {
+        "models": ["groq/llama3-8b-8192","groq/llama3-70b-8192", "groq/mixtral-8x7b-32768"],
+        "create_llm": create_groq_llm
+    }
 
 def llm_providers_and_models():
     return [f"{provider}: {model}" for provider in LLM_CONFIG.keys() for model in LLM_CONFIG[provider]["models"]]
